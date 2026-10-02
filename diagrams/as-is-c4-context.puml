@@ -1,0 +1,25 @@
+@startuml as-is-c4-context
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Context.puml
+
+LAYOUT_WITH_LEGEND()
+
+title «Тёплый дом» — As-Is: диаграмма контекста (C4 Level 1)
+
+Person(user, "Пользователь", "Владелец дома. По кейсу управляет отоплением и смотрит температуру через веб.")
+Person(specialist, "Специалист по подключению", "Выезжает на объект: устанавливает оборудование и регистрирует его в системе. Self-service нет.")
+
+System(smarthome, "Умный дом (монолит)", "Go-приложение + PostgreSQL. В репозитории: REST API реестра датчиков (sensors) и синхронный HTTP-клиент к внешнему источнику температуры. Всё синхронно, один деплой.")
+
+System_Ext(web, "Веб-клиент", "По кейсу — UI (~100 клиентов). В репозитории UI нет; доступ к API — REST (например Postman).")
+System_Ext(devices, "Системы отопления и датчики", "По кейсу: модули отопления и датчики температуры в домах. Управление и опрос — от сервера к устройству.")
+System_Ext(temp_api, "Источник температуры", "Внешний HTTP API (TEMPERATURE_API_URL). В коде уже вызывается; в compose — заготовка сервиса temperature-api без реализации.")
+
+Rel(user, web, "Открывает интерфейс", "HTTPS")
+Rel(web, smarthome, "Запросы к API", "HTTPS / REST, синхронно")
+Rel(specialist, devices, "Установка и подключение", "на объекте")
+Rel(specialist, smarthome, "Регистрация датчика", "через API")
+Rel(smarthome, devices, "По кейсу: команды отопления и опрос", "синхронно, сервер → устройство")
+Rel(smarthome, temp_api, "Чтение температуры (как в коде)", "HTTP GET /temperature...")
+
+SHOW_FLOATING_LEGEND()
+@enduml
