@@ -1,0 +1,30 @@
+@startuml to-be-c4-components-telemetry
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Component.puml
+
+LAYOUT_WITH_LEGEND()
+
+title telemetry-service — компоненты (C4 Level 3)
+
+Container_Boundary(telemetry, "telemetry-service") {
+    Component(api, "Telemetry API", "", "Запись/чтение показаний и свежести данных")
+    Component(ingest, "Ingest Service", "", "Валидация samples и heartbeat / last_seen")
+    Component(query, "Query Service", "", "Выборка по device / дому / интервалу")
+    Component(repo, "Telemetry Repository", "", "Доступ к telemetry-db")
+}
+
+ContainerDb(db, "telemetry-db", "DB", "")
+Container(gateway, "API Gateway", "", "")
+Container(connector, "device-connector", "", "")
+Container(automation, "automation-service", "", "")
+
+Rel(gateway, api, "REST (чтение)")
+Rel(connector, api, "POST sample / heartbeat")
+Rel(automation, api, "условия")
+Rel(api, ingest, "write")
+Rel(api, query, "read")
+Rel(ingest, repo, "append")
+Rel(query, repo, "read")
+Rel(repo, db, "SQL")
+
+SHOW_FLOATING_LEGEND()
+@enduml

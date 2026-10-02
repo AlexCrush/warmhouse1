@@ -98,15 +98,39 @@
 
 **Диаграмма контейнеров (Containers)**
 
-Добавьте диаграмму.
+Исходник: [diagrams/to-be-c4-containers.puml](diagrams/to-be-c4-containers.puml)
+
+![To-Be C4 Containers](diagrams/to-be-c4-containers.png)
+
+Упрощение: свет и ворота — один `actuators-service`; без брокера; **проверки house/device на API Gateway** (household + device), командные сервисы сразу шлют в connector; last_seen — в telemetry; команду доставляем всегда, итог — по ответу connector.
 
 **Диаграмма компонентов (Components)**
 
-Добавьте диаграмму для каждого из выделенных микросервисов.
+device-service — [diagrams/to-be-c4-components-device.puml](diagrams/to-be-c4-components-device.puml)
+
+![device-service components](diagrams/to-be-c4-components-device.png)
+
+telemetry-service — [diagrams/to-be-c4-components-telemetry.puml](diagrams/to-be-c4-components-telemetry.puml)
+
+![telemetry-service components](diagrams/to-be-c4-components-telemetry.png)
+
+heating-service — [diagrams/to-be-c4-components-heating.puml](diagrams/to-be-c4-components-heating.puml)
+
+![heating-service components](diagrams/to-be-c4-components-heating.png)
 
 **Диаграмма кода (Code)**
 
-Добавьте одну диаграмму или несколько.
+Критичный сценарий: команда «включить отопление» (sequence).
+
+Исходник: [diagrams/to-be-code-heating-command.puml](diagrams/to-be-code-heating-command.puml)
+
+![Heating command sequence](diagrams/to-be-code-heating-command.png)
+
+Классы `heating-service`:
+
+Исходник: [diagrams/to-be-code-heating-classes.puml](diagrams/to-be-code-heating-classes.puml)
+
+![Heating service classes](diagrams/to-be-code-heating-classes.png)
 
 # Задание 3. Разработка ER-диаграммы
 

@@ -1,0 +1,62 @@
+@startuml to-be-code-heating-classes
+title Code: классы heating-service
+
+skinparam classAttributeIconSize 0
+skinparam packageStyle rectangle
+
+package "heating-service" {
+  class HeatingAPI {
+    +turnOn(deviceId, connectorRef): Result
+    +turnOff(deviceId, connectorRef): Result
+    +setTarget(deviceId, connectorRef, temp): Result
+  }
+
+  class HeatingController {
+    +execute(cmd: HeatingCommand): Result
+    -validate(cmd): void
+  }
+
+  class HeatingCommand {
+    +id: UUID
+    +deviceId: UUID
+    +connectorRef: String
+    +type: On | Off | SetTarget
+    +targetTemp: Decimal?
+    +status: Pending | Succeeded | Failed
+  }
+
+  class CommandDispatcher {
+    +dispatch(cmd: HeatingCommand): DeliveryResult
+  }
+
+  class HeatingRepository {
+    +save(cmd: HeatingCommand): void
+    +updateStatus(id, status): void
+    +findById(id): HeatingCommand?
+  }
+
+  class ConnectorClient {
+    +sendCommand(connectorRef, payload): DeliveryResult
+  }
+
+  HeatingAPI --> HeatingController : execute
+  HeatingController --> HeatingCommand : creates
+  HeatingController --> HeatingRepository : persist
+  HeatingController --> CommandDispatcher : dispatch
+  CommandDispatcher --> ConnectorClient : HTTP
+}
+
+database "heating-db" {
+  entity command_journal
+}
+
+HeatingRepository ..> command_journal : SQL
+ConnectorClient ..> "device-connector" : REST
+
+note right of HeatingAPI
+  Контекст устройства
+  (тип, дом, connector_ref)
+  уже проверен на API Gateway
+end note
+
+@enduml
