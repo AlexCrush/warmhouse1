@@ -134,7 +134,22 @@ heating-service — [diagrams/to-be-c4-components-heating.puml](diagrams/to-be-c
 
 # Задание 3. Разработка ER-диаграммы
 
-Добавьте сюда ER-диаграмму. Она должна отражать ключевые сущности системы, их атрибуты и тип связей между ними.
+Логическая модель под To-Be и **database per service**: у каждого сервиса своя БД; связи между БД — только по UUID (без межсервисных FK).
+
+Кратко по сущностям:
+
+| БД | Сущности | Связи |
+|----|----------|--------|
+| household-db | `users`, `houses`, `house_access` | User 1—N House (owner); User N—M House через `house_access` (права, в т.ч. сосед) |
+| device-db | `device_types`, `devices` | Type 1—N Device; `house_id` / `connector_ref` — логические ссылки |
+| heating-db | `heating_commands`, `heating_state` | Журнал команд и текущее состояние контура по `device_id` |
+| actuators-db | `actuator_commands`, `actuator_state` | То же для света/ворот (`actuator_kind`) |
+| telemetry-db | `telemetry_samples`, `device_last_seen` | Device 1—N samples; last_seen отдельно |
+| automation-db | `scenarios`, `scenario_conditions`, `scenario_actions` | Scenario 1—N conditions/actions; условия — implicit AND; порядок действий — `step_order` |
+
+Исходник: [diagrams/to-be-er.puml](diagrams/to-be-er.puml)
+
+![To-Be ER](diagrams/to-be-er.png)
 
 # Задание 4. Создание и документирование API
 
