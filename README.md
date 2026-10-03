@@ -155,11 +155,34 @@ heating-service — [diagrams/to-be-c4-components-heating.puml](diagrams/to-be-c
 
 ### 1. Тип API
 
-Укажите, какой тип API вы будете использовать для взаимодействия микросервисов. Объясните своё решение.
+Используем **REST API (OpenAPI 3)** для всех выбранных взаимодействий.
+
+Почему REST, а не AsyncAPI:
+- в To-Be сознательно нет брокера — команды и телеметрия идут синхронно;
+- API Gateway, automation и connector ждут ответ сразу (результат команды, lookup устройства, запись sample);
+- для учебного ландшафта один стиль контрактов проще сопровождать.
+
+AsyncAPI имел бы смысл при событии `TelemetryReceived` через очередь; в нашей схеме это не требуется.
 
 ### 2. Документация API
 
-Здесь приложите ссылки на документацию API для микросервисов, которые вы спроектировали в первой части проектной работы. Для документирования используйте Swagger/OpenAPI или AsyncAPI.
+OpenAPI 3 для **всех** сервисов To-Be (включая API Gateway):
+
+| Сервис | Спецификация |
+|--------|----------------|
+| API Gateway (публичный API) | [schemas/api-gateway.yaml](schemas/api-gateway.yaml) |
+| household-service | [schemas/household-service.yaml](schemas/household-service.yaml) |
+| device-service | [schemas/device-service.yaml](schemas/device-service.yaml) |
+| heating-service | [schemas/heating-service.yaml](schemas/heating-service.yaml) |
+| actuators-service | [schemas/actuators-service.yaml](schemas/actuators-service.yaml) |
+| telemetry-service | [schemas/telemetry-service.yaml](schemas/telemetry-service.yaml) |
+| automation-service | [schemas/automation-service.yaml](schemas/automation-service.yaml) |
+| device-connector | [schemas/device-connector.yaml](schemas/device-connector.yaml) |
+| Индекс | [schemas/openapi.yaml](schemas/openapi.yaml) |
+
+Открывать в [Swagger Editor](https://editor.swagger.io/) (Import file).
+
+Gateway — контракт для веб-клиента (JWT + проверки house/device). Остальные файлы — внутренние REST-контракты service-to-service. У эндпоинтов есть request/response, коды статуса и `examples`.
 
 # Задание 5. Работа с docker и docker-compose
 

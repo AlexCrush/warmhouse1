@@ -1,0 +1,102 @@
+openapi: 3.0.3
+info:
+  title: device-connector
+  description: |
+    Адаптеры протоколов партнёров. Принимает команды от heating/actuators,
+    общается с железом, пишет телеметрию/heartbeat в telemetry-service.
+    Собственной БД нет.
+  version: 1.0.0
+servers:
+  - url: http://device-connector:8080
+paths:
+  /api/v1/commands:
+    post:
+      summary: Отправить команду на устройство
+      description: Вызывают heating-service и actuators-service.
+      operationId: sendCommand
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConnectorCommand'
+            examples:
+              heatingOn:
+                value:
+                  connector_ref: "partner://heating/HT-10042"
+                  command_type: on
+              gateClose:
+                value:
+                  connector_ref: "partner://gate/GT-77"
+                  command_type: close
+      responses:
+        '202':
+          description: Accepted / delivered to device
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeliveryResult'
+              example:
+                connector_ref: "partner://gate/GT-77"
+                status: accepted
+        '502':
+          description: Device protocol error
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              example: { error: protocol_error, message: "Device nack" }
+        '504':
+          description: Device timeout
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              example: { error: timeout, message: "No response" }
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /health:
+    get:
+      summary: Health check
+      operationId: health
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string }
+              example:
+                status: ok
+
+components:
+  responses:
+    BadRequest:
+      description: Bad request
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+  schemas:
+    Error:
+      type: object
+      required: [error, message]
+      properties:
+        error: { type: string }
+        message: { type: string }
+    ConnectorCommand:
+      type: object
+      required: [connector_ref, command_type]
+      properties:
+        connector_ref: { type: string }
+        command_type: { type: string }
+        payload:
+          type: object
+          additionalProperties: true
+          description: Например target_temp для set_target
+    DeliveryResult:
+      type: object
+      required: [connector_ref, status]
+      properties:
+        connector_ref: { type: string }
+        status: { type: string, enum: [accepted, failed] }
