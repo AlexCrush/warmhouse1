@@ -186,58 +186,34 @@ Gateway — контракт для веб-клиента (JWT + проверк�
 
 # Задание 5. Работа с docker и docker-compose
 
-Перейдите в apps.
+Сделано в `apps/`:
 
-Там находится приложение-монолит для работы с датчиками температуры. В README.md описано как запустить решение.
+1. **temperature-api** (Go) — имитатор датчика:
+   - `GET /temperature?location=...`
+   - `GET /temperature/:id`
+   - каждый ответ с новым random `value`
+2. **Dockerfile** + сервис в `docker-compose.yml`, порт **8081**
+3. **postgres** в compose: `POSTGRES_DB=smarthome`, init-скрипт `./smart_home/init.sql`, healthcheck
 
-Вам нужно:
+Запуск:
 
-1) сделать простое приложение temperature-api на любом удобном для вас языке программирования, которое при запросе /temperature?location= будет отдавать рандомное значение температуры.
-
-Locations - название комнаты, sensorId - идентификатор названия комнаты
-
-```
-	// If no location is provided, use a default based on sensor ID
-	if location == "" {
-		switch sensorID {
-		case "1":
-			location = "Living Room"
-		case "2":
-			location = "Bedroom"
-		case "3":
-			location = "Kitchen"
-		default:
-			location = "Unknown"
-		}
-	}
-
-	// If no sensor ID is provided, generate one based on location
-	if sensorID == "" {
-		switch location {
-		case "Living Room":
-			sensorID = "1"
-		case "Bedroom":
-			sensorID = "2"
-		case "Kitchen":
-			sensorID = "3"
-		default:
-			sensorID = "0"
-		}
-	}
+```bash
+cd apps
+./init.sh
+# или: docker-compose up --build -d
 ```
 
-2) Приложение следует упаковать в Docker и добавить в docker-compose. Порт по умолчанию должен быть 8081
+Проверка (Postman `smarthome-api.postman_collection.json` или curl):
 
-3) Кроме того для smart_home приложения требуется база данных - добавьте в docker-compose файл настройки для запуска postgres с указанием скрипта инициализации ./smart_home/init.sql
+```bash
+# Create Sensor
+curl -s -X POST http://localhost:8080/api/v1/sensors \
+  -H 'Content-Type: application/json' \
+  -d '{"name":"Living Room","type":"temperature","location":"Living Room","unit":"°C"}'
 
-Для проверки можно использовать Postman коллекцию smarthome-api.postman_collection.json и вызвать:
-
-- Create Sensor
-- Get All Sensors
-
-Должно при каждом вызове отображаться разное значение температуры
-
-Ревьюер будет проверять точно так же.
+# Get All Sensors — value меняется при каждом вызове
+curl -s http://localhost:8080/api/v1/sensors
+```
 
 
 # **Задание 6. Разработка MVP**
