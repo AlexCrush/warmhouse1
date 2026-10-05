@@ -216,13 +216,33 @@ curl -s http://localhost:8080/api/v1/sensors
 ```
 
 
-# **Задание 6. Разработка MVP**
+# Задание 6. Разработка MVP
 
-Необходимо создать новые микросервисы и обеспечить их интеграции с существующим монолитом для плавного перехода к микросервисной архитектуре. 
+Strangler-миграция: рядом с монолитом подняты два микросервиса на **разных ООП-языках**, синхронный REST (без брокера).
 
-### **Что нужно сделать**
+| Сервис | Язык | Порт | Роль |
+|--------|------|------|------|
+| `device-service` | Python (Flask, OOP) | 8082 | Реестр устройств |
+| `telemetry-service` | Java (JDK HttpServer, OOP) | 8083 | Приём/чтение телеметрии |
+| `smart_home` (монолит) | Go | 8080 | CRUD sensors; синхронизирует данные в MS |
 
-1. Создайте новые микросервисы для управления телеметрией и устройствами (с простейшей логикой), которые будут интегрированы с существующим монолитным приложением. Каждый микросервис на своем ООП языке.
-2. Обеспечьте взаимодействие между микросервисами и монолитом (при желании с помощью брокера сообщений), чтобы постепенно перенести функциональность из монолита в микросервисы. 
+У обоих новых сервисов **хранение в памяти** (без реальной БД) — данные теряются при рестарте контейнера. Для MVP достаточно.
 
-В результате у вас должны быть созданы Dockerfiles и docker-compose для запуска микросервисов. 
+**Интеграция (best-effort — монолит не падает, если MS недоступны):**
+- `POST /api/v1/sensors` → дополнительно `POST device-service /api/v1/devices`
+- `GET /api/v1/sensors` / `GET .../:id` после опроса temperature-api → `POST telemetry-service /api/v1/telemetry/samples`
+
+```bash
+cd apps
+docker compose up --build -d
+```
+
+```bash
+curl -s -X POST http://localhost:8080/api/v1/sensors \
+  -H 'Content-Type: application/json' \
+  -d '{"name":"Living Room","type":"temperature","location":"Living Room","unit":"°C"}'
+
+curl -s http://localhost:8082/api/v1/devices
+curl -s http://localhost:8080/api/v1/sensors
+curl -s http://localhost:8083/api/v1/telemetry/devices/1/latest
+```
