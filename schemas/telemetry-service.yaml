@@ -1,0 +1,128 @@
+openapi: 3.0.3
+info:
+  title: telemetry-service
+  description: Показания и last_seen / heartbeat.
+  version: 1.0.0
+servers:
+  - url: http://telemetry-service:8080
+paths:
+  /api/v1/telemetry/samples:
+    post:
+      summary: Записать показание (обновляет last_seen)
+      description: Вызывает device-connector.
+      operationId: ingestSample
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TelemetrySampleRequest'
+            examples:
+              temperature:
+                value:
+                  device_id: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+                  metric: temperature
+                  value: 19.4
+                  unit: "°C"
+                  recorded_at: "2026-10-02T17:00:00Z"
+              heartbeat:
+                value:
+                  device_id: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+                  metric: heartbeat
+                  value: 1
+                  recorded_at: "2026-10-02T17:00:05Z"
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TelemetrySample'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /api/v1/telemetry/devices/{deviceId}/latest:
+    get:
+      summary: Последние показания и last_seen
+      description: Для automation и UI (через Gateway).
+      operationId: getLatest
+      parameters:
+        - $ref: '#/components/parameters/DeviceId'
+        - name: metric
+          in: query
+          schema: { type: string }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LatestTelemetry'
+              example:
+                device_id: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+                last_seen_at: "2026-10-02T17:00:05Z"
+                samples:
+                  - metric: temperature
+                    value: 19.4
+                    unit: "°C"
+                    recorded_at: "2026-10-02T17:00:00Z"
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+components:
+  parameters:
+    DeviceId:
+      name: deviceId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+  responses:
+    BadRequest:
+      description: Bad request
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    NotFound:
+      description: Not found
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+  schemas:
+    Error:
+      type: object
+      required: [error, message]
+      properties:
+        error: { type: string }
+        message: { type: string }
+    TelemetrySampleRequest:
+      type: object
+      required: [device_id, metric, value, recorded_at]
+      properties:
+        device_id: { type: string, format: uuid }
+        metric: { type: string }
+        value: { type: number }
+        unit: { type: string }
+        recorded_at: { type: string, format: date-time }
+    TelemetrySample:
+      allOf:
+        - $ref: '#/components/schemas/TelemetrySampleRequest'
+        - type: object
+          required: [id]
+          properties:
+            id: { type: string, format: uuid }
+    LatestTelemetry:
+      type: object
+      required: [device_id, last_seen_at, samples]
+      properties:
+        device_id: { type: string, format: uuid }
+        last_seen_at: { type: string, format: date-time }
+        samples:
+          type: array
+          items:
+            type: object
+            required: [metric, value, recorded_at]
+            properties:
+              metric: { type: string }
+              value: { type: number }
+              unit: { type: string }
+              recorded_at: { type: string, format: date-time }

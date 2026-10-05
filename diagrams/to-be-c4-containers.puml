@@ -1,0 +1,100 @@
+@startuml to-be-c4-containers
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Container.puml
+
+LAYOUT_TOP_DOWN()
+LAYOUT_WITH_LEGEND()
+
+title «Тёплый дом» — To-Be: диаграмма контейнеров (C4 Level 2)
+
+Person(user, "Пользователь", "Self-service: модули, сценарии, телеметрия")
+Person(specialist, "Специалист", "Опционально помогает с установкой")
+
+System_Boundary(platform, "Экосистема «Тёплый дом»") {
+    ' слой 1
+    Container(web, "Веб-клиент", "SPA", "UI управления домом и модулями")
+
+    ' слой 2
+    Container(gateway, "API Gateway", "", "Маршрутизация, auth;\nпроверки house/device через household и device")
+
+    ' слой 3
+    Container(household, "household-service", "", "Пользователи, дома, права")
+    ContainerDb(household_db, "household-db", "DB", "")
+    Container(device, "device-service", "", "Реестр устройств: тип, привязка к дому")
+    ContainerDb(device_db, "device-db", "DB", "")
+
+    ' слой 4
+    Container(automation, "automation-service", "", "Пользовательские сценарии")
+    ContainerDb(automation_db, "automation-db", "DB", "")
+
+    ' слой 5
+    Container(actuators, "actuators-service", "", "Свет и ворота/замки")
+    ContainerDb(actuators_db, "actuators-db", "DB", "")
+    Container(heating, "heating-service", "", "Отопление: вкл/выкл, уставки")
+    ContainerDb(heating_db, "heating-db", "DB", "")
+
+    ' слой 6
+    Container(connector, "device-connector", "", "Адаптеры протоколов партнёров")
+    Container(telemetry, "telemetry-service", "", "Показания и last_seen / свежесть данных")
+    ContainerDb(telemetry_db, "telemetry-db", "DB", "")
+}
+
+System_Ext(devices, "Устройства партнёров", "Отопление, свет, ворота, датчики")
+
+Lay_D(user, web)
+Lay_D(specialist, web)
+Lay_D(web, gateway)
+
+Lay_D(gateway, household)
+Lay_D(gateway, device)
+Lay_R(household, device)
+Lay_R(household, household_db)
+Lay_R(device, device_db)
+
+Lay_D(household, automation)
+Lay_D(device, automation)
+Lay_R(automation, automation_db)
+
+Lay_D(automation, actuators)
+Lay_D(automation, heating)
+Lay_R(actuators, heating)
+Lay_R(actuators, actuators_db)
+Lay_R(heating, heating_db)
+
+Lay_D(actuators, connector)
+Lay_D(heating, telemetry)
+Lay_R(connector, telemetry)
+Lay_R(telemetry, telemetry_db)
+
+Lay_D(connector, devices)
+
+Rel(user, web, "")
+Rel(specialist, web, "")
+Rel(web, gateway, "")
+
+Rel(gateway, household, "REST\nдоступ к дому")
+Rel(gateway, device, "REST\nреестр / тип")
+Rel(gateway, automation, "REST")
+Rel(gateway, actuators, "REST")
+Rel(gateway, heating, "REST")
+Rel(gateway, telemetry, "REST")
+
+Rel(household, household_db, "")
+Rel(device, device_db, "")
+Rel(automation, automation_db, "")
+Rel(actuators, actuators_db, "")
+Rel(heating, heating_db, "")
+Rel(telemetry, telemetry_db, "")
+
+Rel(automation, heating, "команда")
+Rel(automation, actuators, "команда")
+Rel(automation, telemetry, "условия")
+
+Rel(heating, connector, "команда")
+Rel(actuators, connector, "команда")
+Rel(connector, devices, "протокол")
+
+Rel(devices, connector, "телеметрия / heartbeat")
+Rel(connector, telemetry, "показания / last_seen")
+
+SHOW_FLOATING_LEGEND()
+@enduml

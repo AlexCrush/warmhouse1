@@ -1,0 +1,216 @@
+openapi: 3.0.3
+info:
+  title: automation-service
+  description: |
+    Сценарии. Условия — implicit AND. Действия по step_order.
+    Команды — напрямую в heating/actuators (доверенный клиент).
+  version: 1.0.0
+servers:
+  - url: http://automation-service:8080
+paths:
+  /api/v1/houses/{houseId}/scenarios:
+    get:
+      summary: Список сценариев дома
+      operationId: listScenarios
+      parameters:
+        - $ref: '#/components/parameters/HouseId'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Scenario'
+    post:
+      summary: Создать сценарий
+      operationId: createScenario
+      parameters:
+        - $ref: '#/components/parameters/HouseId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ScenarioCreate'
+            example:
+              name: "Холодно — включить отопление"
+              enabled: true
+              conditions:
+                - device_id: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+                  metric: temperature
+                  operator: lt
+                  threshold: 18
+              actions:
+                - step_order: 1
+                  target_service: heating
+                  device_id: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+                  command_type: on
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Scenario'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /api/v1/scenarios/{scenarioId}:
+    get:
+      summary: Получить сценарий
+      operationId: getScenario
+      parameters:
+        - $ref: '#/components/parameters/ScenarioId'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Scenario'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      summary: Удалить сценарий
+      operationId: deleteScenario
+      parameters:
+        - $ref: '#/components/parameters/ScenarioId'
+      responses:
+        '204':
+          description: Deleted
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v1/scenarios/{scenarioId}/enable:
+    post:
+      summary: Включить сценарий
+      operationId: enableScenario
+      parameters:
+        - $ref: '#/components/parameters/ScenarioId'
+      responses:
+        '200':
+          description: Enabled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Scenario'
+
+  /api/v1/scenarios/{scenarioId}/disable:
+    post:
+      summary: Выключить сценарий
+      operationId: disableScenario
+      parameters:
+        - $ref: '#/components/parameters/ScenarioId'
+      responses:
+        '200':
+          description: Disabled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Scenario'
+
+  /api/v1/internal/evaluate:
+    post:
+      summary: Проверить условия и выполнить actions
+      description: Читает telemetry latest; при AND всех условий шлёт команды по step_order.
+      operationId: evaluateScenarios
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                house_id: { type: string, format: uuid }
+            example:
+              house_id: "7c9e6679-7425-40de-944b-e07fc1f90ae7"
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  evaluated: { type: integer }
+                  triggered: { type: integer }
+              example:
+                evaluated: 3
+                triggered: 1
+
+components:
+  parameters:
+    HouseId:
+      name: houseId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    ScenarioId:
+      name: scenarioId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+  responses:
+    BadRequest:
+      description: Bad request
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    NotFound:
+      description: Not found
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+  schemas:
+    Error:
+      type: object
+      required: [error, message]
+      properties:
+        error: { type: string }
+        message: { type: string }
+    ScenarioCondition:
+      type: object
+      required: [device_id, metric, operator, threshold]
+      properties:
+        device_id: { type: string, format: uuid }
+        metric: { type: string }
+        operator: { type: string, enum: [lt, lte, gt, gte, eq] }
+        threshold: { type: number }
+      description: Implicit AND
+    ScenarioAction:
+      type: object
+      required: [step_order, target_service, device_id, command_type]
+      properties:
+        step_order: { type: integer }
+        target_service: { type: string, enum: [heating, actuators] }
+        device_id: { type: string, format: uuid }
+        command_type: { type: string }
+        payload: { type: object, additionalProperties: true }
+    Scenario:
+      type: object
+      required: [id, house_id, name, enabled, conditions, actions]
+      properties:
+        id: { type: string, format: uuid }
+        house_id: { type: string, format: uuid }
+        name: { type: string }
+        enabled: { type: boolean }
+        conditions:
+          type: array
+          items: { $ref: '#/components/schemas/ScenarioCondition' }
+        actions:
+          type: array
+          items: { $ref: '#/components/schemas/ScenarioAction' }
+    ScenarioCreate:
+      type: object
+      required: [name, conditions, actions]
+      properties:
+        name: { type: string }
+        enabled: { type: boolean, default: true }
+        conditions:
+          type: array
+          items: { $ref: '#/components/schemas/ScenarioCondition' }
+        actions:
+          type: array
+          items: { $ref: '#/components/schemas/ScenarioAction' }

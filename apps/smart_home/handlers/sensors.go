@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"time"
 
 	"smarthome/db"
 	"smarthome/models"
@@ -18,13 +19,22 @@ import (
 type SensorHandler struct {
 	DB                 *db.DB
 	TemperatureService *services.TemperatureService
+	DeviceClient       *services.DeviceClient
+	TelemetryClient    *services.TelemetryClient
 }
 
 // NewSensorHandler creates a new SensorHandler
-func NewSensorHandler(db *db.DB, temperatureService *services.TemperatureService) *SensorHandler {
+func NewSensorHandler(
+	db *db.DB,
+	temperatureService *services.TemperatureService,
+	deviceClient *services.DeviceClient,
+	telemetryClient *services.TelemetryClient,
+) *SensorHandler {
 	return &SensorHandler{
 		DB:                 db,
 		TemperatureService: temperatureService,
+		DeviceClient:       deviceClient,
+		TelemetryClient:    telemetryClient,
 	}
 }
 
@@ -60,6 +70,7 @@ func (h *SensorHandler) GetSensors(c *gin.Context) {
 				sensors[i].Status = tempData.Status
 				sensors[i].LastUpdated = tempData.Timestamp
 				log.Printf("Updated temperature data for sensor %d from external API", sensor.ID)
+				h.publishTelemetry(sensor.ID, tempData.Value, tempData.Unit, tempData.Timestamp)
 			} else {
 				log.Printf("Failed to fetch temperature data for sensor %d: %v", sensor.ID, err)
 			}
@@ -92,6 +103,7 @@ func (h *SensorHandler) GetSensorByID(c *gin.Context) {
 			sensor.Status = tempData.Status
 			sensor.LastUpdated = tempData.Timestamp
 			log.Printf("Updated temperature data for sensor %d from external API", sensor.ID)
+			h.publishTelemetry(sensor.ID, tempData.Value, tempData.Unit, tempData.Timestamp)
 		} else {
 			log.Printf("Failed to fetch temperature data for sensor %d: %v", sensor.ID, err)
 		}
@@ -140,6 +152,21 @@ func (h *SensorHandler) CreateSensor(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
+	}
+
+	// Strangler: sync registry into device-service (best-effort).
+	if h.DeviceClient != nil {
+		if err := h.DeviceClient.Register(services.DevicePayload{
+			ID:       sensor.ID,
+			Name:     sensor.Name,
+			Type:     string(sensor.Type),
+			Location: sensor.Location,
+			HouseID:  "default",
+		}); err != nil {
+			log.Printf("device-service register failed for sensor %d: %v", sensor.ID, err)
+		} else {
+			log.Printf("Registered sensor %d in device-service", sensor.ID)
+		}
 	}
 
 	c.JSON(http.StatusCreated, sensor)
@@ -210,4 +237,19 @@ func (h *SensorHandler) UpdateSensorValue(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Sensor value updated successfully"})
+}
+
+func (h *SensorHandler) publishTelemetry(deviceID int, value float64, unit string, recordedAt time.Time) {
+	if h.TelemetryClient == nil {
+		return
+	}
+	if err := h.TelemetryClient.Ingest(services.TelemetryPayload{
+		DeviceID:   fmt.Sprintf("%d", deviceID),
+		Metric:     "temperature",
+		Value:      value,
+		Unit:       unit,
+		RecordedAt: recordedAt,
+	}); err != nil {
+		log.Printf("telemetry-service ingest failed for device %d: %v", deviceID, err)
+	}
 }

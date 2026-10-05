@@ -1,0 +1,161 @@
+openapi: 3.0.3
+info:
+  title: device-service
+  description: Реестр устройств (тип, дом, connector_ref). Без online/status.
+  version: 1.0.0
+servers:
+  - url: http://device-service:8080
+paths:
+  /api/v1/device-types:
+    get:
+      summary: Список типов устройств
+      operationId: listDeviceTypes
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DeviceType'
+              example:
+                - id: "dddddddd-0001-0001-0001-000000000001"
+                  code: heating
+                  name: "Отопление"
+                - id: "dddddddd-0001-0001-0001-000000000002"
+                  code: gate
+                  name: "Ворота"
+
+  /api/v1/devices:
+    post:
+      summary: Зарегистрировать устройство
+      operationId: createDevice
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeviceCreate'
+            example:
+              type_code: heating
+              house_id: "7c9e6679-7425-40de-944b-e07fc1f90ae7"
+              serial_number: "HT-10042"
+              connector_ref: "partner://heating/HT-10042"
+              name: "Котельная"
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Device'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /api/v1/devices/{deviceId}:
+    get:
+      summary: Получить устройство
+      description: Lookup для API Gateway (тип, house_id, connector_ref).
+      operationId: getDevice
+      parameters:
+        - $ref: '#/components/parameters/DeviceId'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Device'
+              example:
+                id: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+                type_code: heating
+                house_id: "7c9e6679-7425-40de-944b-e07fc1f90ae7"
+                serial_number: "HT-10042"
+                connector_ref: "partner://heating/HT-10042"
+                name: "Котельная"
+                created_at: "2026-03-01T10:00:00Z"
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      summary: Удалить устройство из реестра
+      operationId: deleteDevice
+      parameters:
+        - $ref: '#/components/parameters/DeviceId'
+      responses:
+        '204':
+          description: Deleted
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v1/houses/{houseId}/devices:
+    get:
+      summary: Устройства дома
+      operationId: listDevicesByHouse
+      parameters:
+        - name: houseId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Device'
+
+components:
+  parameters:
+    DeviceId:
+      name: deviceId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+  responses:
+    BadRequest:
+      description: Bad request
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    NotFound:
+      description: Not found
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+  schemas:
+    Error:
+      type: object
+      required: [error, message]
+      properties:
+        error: { type: string }
+        message: { type: string }
+    DeviceType:
+      type: object
+      required: [id, code, name]
+      properties:
+        id: { type: string, format: uuid }
+        code: { type: string, enum: [heating, light, gate, temperature_sensor] }
+        name: { type: string }
+    Device:
+      type: object
+      required: [id, type_code, house_id, serial_number, connector_ref, created_at]
+      properties:
+        id: { type: string, format: uuid }
+        type_code: { type: string, enum: [heating, light, gate, temperature_sensor] }
+        house_id: { type: string, format: uuid }
+        serial_number: { type: string }
+        connector_ref: { type: string }
+        name: { type: string }
+        created_at: { type: string, format: date-time }
+    DeviceCreate:
+      type: object
+      required: [type_code, house_id, serial_number, connector_ref]
+      properties:
+        type_code: { type: string, enum: [heating, light, gate, temperature_sensor] }
+        house_id: { type: string, format: uuid }
+        serial_number: { type: string }
+        connector_ref: { type: string }
+        name: { type: string }

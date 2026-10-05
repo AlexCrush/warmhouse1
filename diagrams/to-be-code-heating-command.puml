@@ -1,0 +1,47 @@
+@startuml to-be-code-heating-command
+title Code: последовательность «включить отопление»
+
+actor User as user
+participant "Веб-клиент" as web
+participant "API Gateway" as gw
+participant "household-service" as hh
+participant "device-service" as device
+participant "heating-service" as heat
+participant "device-connector" as conn
+participant "Устройство\nотопления" as hw
+database "heating-db" as db
+
+user -> web: Включить отопление
+web -> gw: POST /heating/{deviceId}/on
+
+gw -> hh: проверить доступ к дому
+hh --> gw: ok
+gw -> device: GET /devices/{id}
+device --> gw: type=heating, houseId, connector_ref
+gw -> gw: validate type/house
+
+gw -> heat: TurnOn(deviceId, connector_ref, ...)
+heat -> db: INSERT command(pending)
+heat -> conn: POST /commands
+conn -> hw: протокол партнёра
+
+alt устройство ответило
+  hw --> conn: ack
+  conn --> heat: ok
+  heat -> db: UPDATE command(succeeded)
+  heat --> gw: 200
+else таймаут / ошибка
+  conn --> heat: error
+  heat -> db: UPDATE command(failed)
+  heat --> gw: 502 / 504\n(готово к уведомлению)
+end
+
+gw --> web
+web --> user: результат
+
+note over conn
+  Показания и last_seen:
+  connector → telemetry-service
+end note
+
+@enduml

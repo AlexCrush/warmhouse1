@@ -1,0 +1,201 @@
+openapi: 3.0.3
+info:
+  title: household-service
+  description: Пользователи, дома, права доступа. Вызывается API Gateway.
+  version: 1.0.0
+servers:
+  - url: http://household-service:8080
+paths:
+  /api/v1/users/{userId}:
+    get:
+      summary: Получить пользователя
+      operationId: getUser
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+              example:
+                id: "11111111-1111-1111-1111-111111111111"
+                email: "owner@example.com"
+                name: "Иван"
+                created_at: "2026-01-01T00:00:00Z"
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v1/houses:
+    post:
+      summary: Создать дом
+      operationId: createHouse
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, owner_user_id]
+              properties:
+                name: { type: string }
+                address: { type: string }
+                owner_user_id: { type: string, format: uuid }
+            example:
+              name: "Дача"
+              address: "Московская обл."
+              owner_user_id: "11111111-1111-1111-1111-111111111111"
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/House'
+
+  /api/v1/houses/{houseId}:
+    get:
+      summary: Получить дом
+      operationId: getHouse
+      parameters:
+        - $ref: '#/components/parameters/HouseId'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/House'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v1/houses/{houseId}/access/{userId}:
+    get:
+      summary: Проверить доступ пользователя к дому
+      description: Основной вызов для API Gateway перед командами.
+      operationId: checkAccess
+      parameters:
+        - $ref: '#/components/parameters/HouseId'
+        - name: userId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Доступ есть
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [house_id, user_id, role, allowed]
+                properties:
+                  house_id: { type: string, format: uuid }
+                  user_id: { type: string, format: uuid }
+                  role: { type: string, enum: [owner, member, guest] }
+                  allowed: { type: boolean }
+              example:
+                house_id: "7c9e6679-7425-40de-944b-e07fc1f90ae7"
+                user_id: "22222222-2222-2222-2222-222222222222"
+                role: guest
+                allowed: true
+        '404':
+          description: Дома нет или доступа нет
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: not_found
+                message: "No access or house missing"
+    put:
+      summary: Выдать/обновить доступ
+      operationId: upsertAccess
+      parameters:
+        - $ref: '#/components/parameters/HouseId'
+        - name: userId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [role]
+              properties:
+                role: { type: string, enum: [member, guest] }
+            example:
+              role: guest
+      responses:
+        '200':
+          description: Updated
+        '201':
+          description: Created
+
+  /api/v1/users/{userId}/houses:
+    get:
+      summary: Дома пользователя (owner + access)
+      operationId: listUserHouses
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/HouseWithRole'
+
+components:
+  parameters:
+    HouseId:
+      name: houseId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+  responses:
+    NotFound:
+      description: Not found
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+  schemas:
+    Error:
+      type: object
+      required: [error, message]
+      properties:
+        error: { type: string }
+        message: { type: string }
+    User:
+      type: object
+      required: [id, email, name, created_at]
+      properties:
+        id: { type: string, format: uuid }
+        email: { type: string }
+        name: { type: string }
+        created_at: { type: string, format: date-time }
+    House:
+      type: object
+      required: [id, name, owner_user_id, created_at]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        address: { type: string }
+        owner_user_id: { type: string, format: uuid }
+        created_at: { type: string, format: date-time }
+    HouseWithRole:
+      allOf:
+        - $ref: '#/components/schemas/House'
+        - type: object
+          properties:
+            role: { type: string, enum: [owner, member, guest] }

@@ -1,0 +1,124 @@
+openapi: 3.0.3
+info:
+  title: heating-service
+  description: Команды и состояние отопления. Проверки house/device — на Gateway.
+  version: 1.0.0
+servers:
+  - url: http://heating-service:8080
+paths:
+  /api/v1/heating/{deviceId}/commands:
+    post:
+      summary: Отправить команду отоплению
+      operationId: sendHeatingCommand
+      parameters:
+        - $ref: '#/components/parameters/DeviceId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HeatingCommandRequest'
+            examples:
+              turnOn:
+                value:
+                  command_type: on
+                  connector_ref: "partner://heating/HT-10042"
+              setTarget:
+                value:
+                  command_type: set_target
+                  connector_ref: "partner://heating/HT-10042"
+                  target_temp: 22.5
+      responses:
+        '200':
+          description: Delivered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommandResult'
+              example:
+                command_id: "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d"
+                device_id: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+                status: succeeded
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '502':
+          description: Delivery failed
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              example: { error: device_delivery_failed, message: "No ack" }
+        '504':
+          description: Timeout
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              example: { error: device_timeout, message: "Timeout" }
+
+  /api/v1/heating/{deviceId}/state:
+    get:
+      summary: Текущее состояние контура
+      operationId: getHeatingState
+      parameters:
+        - $ref: '#/components/parameters/DeviceId'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HeatingState'
+              example:
+                device_id: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+                is_on: true
+                target_temp: 22.5
+                updated_at: "2026-10-02T17:05:00Z"
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+components:
+  parameters:
+    DeviceId:
+      name: deviceId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+  responses:
+    BadRequest:
+      description: Bad request
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    NotFound:
+      description: Not found
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+  schemas:
+    Error:
+      type: object
+      required: [error, message]
+      properties:
+        error: { type: string }
+        message: { type: string }
+    HeatingCommandRequest:
+      type: object
+      required: [command_type, connector_ref]
+      properties:
+        command_type: { type: string, enum: [on, off, set_target] }
+        connector_ref: { type: string }
+        target_temp: { type: number, format: double }
+    CommandResult:
+      type: object
+      required: [command_id, device_id, status]
+      properties:
+        command_id: { type: string, format: uuid }
+        device_id: { type: string, format: uuid }
+        status: { type: string, enum: [succeeded, failed] }
+    HeatingState:
+      type: object
+      required: [device_id, is_on, updated_at]
+      properties:
+        device_id: { type: string, format: uuid }
+        is_on: { type: boolean }
+        target_temp: { type: number }
+        updated_at: { type: string, format: date-time }

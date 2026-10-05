@@ -1,0 +1,20 @@
+openapi: 3.0.3
+info:
+  title: Тёплый дом — индекс OpenAPI
+  description: |
+    Полный набор контрактов To-Be (REST / OpenAPI 3).
+
+    **Публичный вход:** [api-gateway.yaml](./api-gateway.yaml)
+
+    **Внутренние сервисы:**
+    - [household-service.yaml](./household-service.yaml)
+    - [device-service.yaml](./device-service.yaml)
+    - [heating-service.yaml](./heating-service.yaml)
+    - [actuators-service.yaml](./actuators-service.yaml)
+    - [telemetry-service.yaml](./telemetry-service.yaml)
+    - [automation-service.yaml](./automation-service.yaml)
+    - [device-connector.yaml](./device-connector.yaml)
+
+    Открывать каждый файл отдельно в Swagger Editor.
+  version: 1.0.0
+paths: {}

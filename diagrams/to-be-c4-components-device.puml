@@ -1,0 +1,23 @@
+@startuml to-be-c4-components-device
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Component.puml
+
+LAYOUT_WITH_LEGEND()
+
+title device-service — компоненты (C4 Level 3)
+
+Container_Boundary(device, "device-service") {
+    Component(api, "Device API", "", "CRUD, регистрация, lookup для Gateway")
+    Component(registry, "Device Registry", "", "Тип модуля, привязка к дому, жизненный цикл")
+    Component(repo, "Device Repository", "", "Доступ к device-db")
+}
+
+ContainerDb(db, "device-db", "DB", "")
+Container(gateway, "API Gateway", "", "Проверки на входе запроса")
+
+Rel(gateway, api, "REST")
+Rel(api, registry, "commands / queries")
+Rel(registry, repo, "persist")
+Rel(repo, db, "SQL")
+
+SHOW_FLOATING_LEGEND()
+@enduml

@@ -1,0 +1,510 @@
+openapi: 3.0.3
+info:
+  title: API Gateway — публичный API
+  description: |
+    Внешняя точка входа для веб-клиента.
+    Gateway выполняет auth и проверки house/device (household + device),
+    затем проксирует/оркестрирует вызовы в доменные сервисы.
+  version: 1.0.0
+servers:
+  - url: https://api.warmhouse.example
+tags:
+  - name: auth
+  - name: houses
+  - name: devices
+  - name: heating
+  - name: actuators
+  - name: telemetry
+  - name: automation
+
+paths:
+  /api/v1/me:
+    get:
+      tags: [auth]
+      summary: Текущий пользователь
+      operationId: getMe
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+              example:
+                id: "11111111-1111-1111-1111-111111111111"
+                email: "owner@example.com"
+                name: "Иван"
+                created_at: "2026-01-01T00:00:00Z"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/v1/houses:
+    get:
+      tags: [houses]
+      summary: Список домов текущего пользователя
+      operationId: listMyHouses
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/House'
+              example:
+                - id: "7c9e6679-7425-40de-944b-e07fc1f90ae7"
+                  name: "Дача"
+                  address: "Московская обл."
+                  owner_user_id: "11111111-1111-1111-1111-111111111111"
+                  role: owner
+                  created_at: "2026-02-01T00:00:00Z"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    post:
+      tags: [houses]
+      summary: Создать дом
+      operationId: createHouse
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string }
+                address: { type: string }
+            example:
+              name: "Дача"
+              address: "Московская обл."
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/House'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/v1/houses/{houseId}/access:
+    post:
+      tags: [houses]
+      summary: Выдать доступ к дому (например соседу)
+      operationId: grantHouseAccess
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/HouseId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [user_id, role]
+              properties:
+                user_id: { type: string, format: uuid }
+                role: { type: string, enum: [member, guest] }
+            example:
+              user_id: "22222222-2222-2222-2222-222222222222"
+              role: guest
+      responses:
+        '201':
+          description: Access granted
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v1/houses/{houseId}/devices:
+    get:
+      tags: [devices]
+      summary: Устройства дома
+      description: Gateway проверяет доступ к дому, затем читает device-service.
+      operationId: listHouseDevices
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/HouseId'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Device'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      tags: [devices]
+      summary: Зарегистрировать устройство (self-service)
+      description: Gateway проверяет доступ к дому, затем создаёт устройство в device-service.
+      operationId: registerDevice
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/HouseId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeviceCreate'
+            example:
+              type_code: gate
+              serial_number: "GT-77"
+              connector_ref: "partner://gate/GT-77"
+              name: "Ворота"
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Device'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /api/v1/heating/{deviceId}/commands:
+    post:
+      tags: [heating]
+      summary: Команда отоплению
+      description: |
+        Gateway: auth → household (доступ к дому устройства) → device (тип=heating) → heating-service.
+      operationId: gwHeatingCommand
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/DeviceId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HeatingCommandBody'
+            example:
+              command_type: on
+      responses:
+        '200':
+          description: Succeeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommandResult'
+              example:
+                command_id: "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d"
+                device_id: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+                status: succeeded
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '502':
+          $ref: '#/components/responses/BadGateway'
+        '504':
+          $ref: '#/components/responses/GatewayTimeout'
+
+  /api/v1/actuators/{deviceId}/commands:
+    post:
+      tags: [actuators]
+      summary: Команда свету или воротам
+      description: |
+        Gateway: auth → household → device (тип light|gate) → actuators-service.
+      operationId: gwActuatorCommand
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/DeviceId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ActuatorCommandBody'
+            example:
+              command_type: close
+      responses:
+        '200':
+          description: Succeeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommandResult'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '502':
+          $ref: '#/components/responses/BadGateway'
+        '504':
+          $ref: '#/components/responses/GatewayTimeout'
+
+  /api/v1/telemetry/devices/{deviceId}/latest:
+    get:
+      tags: [telemetry]
+      summary: Последние показания устройства
+      description: Gateway проверяет доступ к дому устройства.
+      operationId: gwLatestTelemetry
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/DeviceId'
+        - name: metric
+          in: query
+          schema: { type: string }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LatestTelemetry'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v1/houses/{houseId}/scenarios:
+    get:
+      tags: [automation]
+      summary: Список сценариев дома
+      operationId: listScenarios
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/HouseId'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Scenario'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      tags: [automation]
+      summary: Создать сценарий
+      operationId: createScenario
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/HouseId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ScenarioCreate'
+            example:
+              name: "Холодно — включить отопление"
+              enabled: true
+              conditions:
+                - device_id: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+                  metric: temperature
+                  operator: lt
+                  threshold: 18
+              actions:
+                - step_order: 1
+                  target_service: heating
+                  device_id: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+                  command_type: on
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Scenario'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    HouseId:
+      name: houseId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    DeviceId:
+      name: deviceId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+
+  responses:
+    Unauthorized:
+      description: Не авторизован
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { error: unauthorized, message: "Missing or invalid token" }
+    Forbidden:
+      description: Нет доступа
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { error: forbidden, message: "No access to house" }
+    NotFound:
+      description: Не найдено
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { error: not_found, message: "Resource not found" }
+    BadGateway:
+      description: Устройство не подтвердило команду
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { error: device_delivery_failed, message: "No ack" }
+    GatewayTimeout:
+      description: Таймаут устройства
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { error: device_timeout, message: "Timeout" }
+
+  schemas:
+    Error:
+      type: object
+      required: [error, message]
+      properties:
+        error: { type: string }
+        message: { type: string }
+    User:
+      type: object
+      required: [id, email, name, created_at]
+      properties:
+        id: { type: string, format: uuid }
+        email: { type: string }
+        name: { type: string }
+        created_at: { type: string, format: date-time }
+    House:
+      type: object
+      required: [id, name, owner_user_id, created_at]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        address: { type: string }
+        owner_user_id: { type: string, format: uuid }
+        role: { type: string, enum: [owner, member, guest] }
+        created_at: { type: string, format: date-time }
+    Device:
+      type: object
+      required: [id, type_code, house_id, serial_number, connector_ref, created_at]
+      properties:
+        id: { type: string, format: uuid }
+        type_code: { type: string, enum: [heating, light, gate, temperature_sensor] }
+        house_id: { type: string, format: uuid }
+        serial_number: { type: string }
+        connector_ref: { type: string }
+        name: { type: string }
+        created_at: { type: string, format: date-time }
+    DeviceCreate:
+      type: object
+      required: [type_code, serial_number, connector_ref]
+      properties:
+        type_code: { type: string, enum: [heating, light, gate, temperature_sensor] }
+        serial_number: { type: string }
+        connector_ref: { type: string }
+        name: { type: string }
+    HeatingCommandBody:
+      type: object
+      required: [command_type]
+      properties:
+        command_type: { type: string, enum: [on, off, set_target] }
+        target_temp: { type: number, format: double }
+    ActuatorCommandBody:
+      type: object
+      required: [command_type]
+      properties:
+        command_type: { type: string, enum: [on, off, open, close] }
+    CommandResult:
+      type: object
+      required: [command_id, device_id, status]
+      properties:
+        command_id: { type: string, format: uuid }
+        device_id: { type: string, format: uuid }
+        status: { type: string, enum: [succeeded, failed] }
+    LatestTelemetry:
+      type: object
+      required: [device_id, last_seen_at, samples]
+      properties:
+        device_id: { type: string, format: uuid }
+        last_seen_at: { type: string, format: date-time }
+        samples:
+          type: array
+          items:
+            type: object
+            required: [metric, value, recorded_at]
+            properties:
+              metric: { type: string }
+              value: { type: number }
+              unit: { type: string }
+              recorded_at: { type: string, format: date-time }
+    Scenario:
+      type: object
+      required: [id, house_id, name, enabled, conditions, actions]
+      properties:
+        id: { type: string, format: uuid }
+        house_id: { type: string, format: uuid }
+        name: { type: string }
+        enabled: { type: boolean }
+        conditions:
+          type: array
+          items:
+            $ref: '#/components/schemas/ScenarioCondition'
+        actions:
+          type: array
+          items:
+            $ref: '#/components/schemas/ScenarioAction'
+    ScenarioCreate:
+      type: object
+      required: [name, conditions, actions]
+      properties:
+        name: { type: string }
+        enabled: { type: boolean, default: true }
+        conditions:
+          type: array
+          items:
+            $ref: '#/components/schemas/ScenarioCondition'
+        actions:
+          type: array
+          items:
+            $ref: '#/components/schemas/ScenarioAction'
+    ScenarioCondition:
+      type: object
+      required: [device_id, metric, operator, threshold]
+      properties:
+        device_id: { type: string, format: uuid }
+        metric: { type: string }
+        operator: { type: string, enum: [lt, lte, gt, gte, eq] }
+        threshold: { type: number }
+      description: Условия сценария объединяются через implicit AND
+    ScenarioAction:
+      type: object
+      required: [step_order, target_service, device_id, command_type]
+      properties:
+        step_order: { type: integer }
+        target_service: { type: string, enum: [heating, actuators] }
+        device_id: { type: string, format: uuid }
+        command_type: { type: string }
+        payload: { type: object, additionalProperties: true }

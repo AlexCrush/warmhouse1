@@ -1,0 +1,181 @@
+@startuml to-be-er
+title «Тёплый дом» — ER (database per service)
+
+skinparam linetype ortho
+hide circle
+skinparam packageStyle rectangle
+
+together {
+package "household-db" as HH {
+  entity "users" as users {
+    * id : UUID <<PK>>
+    --
+    * email : VARCHAR
+    * name : VARCHAR
+    * created_at : TIMESTAMPTZ
+  }
+
+  entity "houses" as houses {
+    * id : UUID <<PK>>
+    --
+    * name : VARCHAR
+    address : VARCHAR
+    * owner_user_id : UUID <<FK>>
+    * created_at : TIMESTAMPTZ
+  }
+
+  entity "house_access" as house_access {
+    * house_id : UUID <<PK,FK>>
+    * user_id : UUID <<PK,FK>>
+    --
+    * role : VARCHAR
+    ' owner | member | guest (например сосед — открывать ворота)
+    * created_at : TIMESTAMPTZ
+  }
+
+  users ||--o{ houses : owns
+  users ||--o{ house_access
+  houses ||--o{ house_access
+}
+
+package "device-db" as DEV {
+  entity "device_types" as device_types {
+    * id : UUID <<PK>>
+    --
+    * code : VARCHAR
+    ' heating | light | gate | temperature_sensor
+    * name : VARCHAR
+  }
+
+  entity "devices" as devices {
+    * id : UUID <<PK>>
+    --
+    * type_id : UUID <<FK>>
+    * house_id : UUID
+    ' логическая ссылка на houses.id (нет FK между БД)
+    * serial_number : VARCHAR
+    * connector_ref : VARCHAR
+    ' адрес/идентификатор для device-connector
+    name : VARCHAR
+    * created_at : TIMESTAMPTZ
+  }
+
+  device_types ||--o{ devices
+}
+
+package "heating-db" as HEAT {
+  entity "heating_commands" as heating_commands {
+    * id : UUID <<PK>>
+    --
+    * device_id : UUID
+    * connector_ref : VARCHAR
+    * command_type : VARCHAR
+    ' on | off | set_target
+    target_temp : DECIMAL
+    * status : VARCHAR
+    ' pending | succeeded | failed
+    * created_at : TIMESTAMPTZ
+    updated_at : TIMESTAMPTZ
+  }
+
+  entity "heating_state" as heating_state {
+    * device_id : UUID <<PK>>
+    --
+    * is_on : BOOLEAN
+    target_temp : DECIMAL
+    * updated_at : TIMESTAMPTZ
+  }
+}
+
+package "actuators-db" as ACT {
+  entity "actuator_commands" as actuator_commands {
+    * id : UUID <<PK>>
+    --
+    * device_id : UUID
+    * connector_ref : VARCHAR
+    * actuator_kind : VARCHAR
+    ' light | gate
+    * command_type : VARCHAR
+    ' on | off | open | close
+    * status : VARCHAR
+    * created_at : TIMESTAMPTZ
+    updated_at : TIMESTAMPTZ
+  }
+
+  entity "actuator_state" as actuator_state {
+    * device_id : UUID <<PK>>
+    --
+    * actuator_kind : VARCHAR
+    * state : VARCHAR
+    ' on/off или open/closed
+    * updated_at : TIMESTAMPTZ
+  }
+}
+
+package "telemetry-db" as TEL {
+  entity "telemetry_samples" as telemetry_samples {
+    * id : UUID <<PK>>
+    --
+    * device_id : UUID
+    * metric : VARCHAR
+    ' temperature | humidity | ...
+    * value : DECIMAL
+    unit : VARCHAR
+    * recorded_at : TIMESTAMPTZ
+  }
+
+  entity "device_last_seen" as device_last_seen {
+    * device_id : UUID <<PK>>
+    --
+    * last_seen_at : TIMESTAMPTZ
+  }
+}
+
+package "automation-db" as AUTO {
+  entity "scenarios" as scenarios {
+    * id : UUID <<PK>>
+    --
+    * house_id : UUID
+    * name : VARCHAR
+    * enabled : BOOLEAN
+    * created_at : TIMESTAMPTZ
+  }
+
+  entity "scenario_conditions" as scenario_conditions {
+    * id : UUID <<PK>>
+    --
+    * scenario_id : UUID <<FK>>
+    * device_id : UUID
+    * metric : VARCHAR
+    * operator : VARCHAR
+    ' lt | lte | gt | gte | eq
+    * threshold : DECIMAL
+    ' все условия сценария — implicit AND
+  }
+
+  entity "scenario_actions" as scenario_actions {
+    * id : UUID <<PK>>
+    --
+    * scenario_id : UUID <<FK>>
+    * step_order : INT
+    ' порядок выполнения: 1, 2, 3...
+    * target_service : VARCHAR
+    ' heating | actuators
+    * device_id : UUID
+    * command_type : VARCHAR
+    payload : JSON
+  }
+
+  scenarios ||--o{ scenario_conditions
+  scenarios ||--o{ scenario_actions
+}
+}
+
+note as N1
+  Database per service: FK только внутри пакета (БД).
+  Поля house_id / device_id в чужих БД — логические
+  ссылки (UUID), без межсервисных FK.
+  device-connector без собственной БД.
+end note
+
+@enduml

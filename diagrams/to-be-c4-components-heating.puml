@@ -1,0 +1,29 @@
+@startuml to-be-c4-components-heating
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Component.puml
+
+LAYOUT_WITH_LEGEND()
+
+title heating-service — компоненты (C4 Level 3)
+
+Container_Boundary(heating, "heating-service") {
+    Component(api, "Heating API", "", "Вкл/выкл, уставка; контекст устройства уже проверен на GW")
+    Component(ctrl, "Heating Controller", "", "Правила отопления, идемпотентность")
+    Component(cmd, "Command Dispatcher", "", "Команда в device-connector")
+    Component(repo, "Heating Repository", "", "Журнал команд и состояние")
+}
+
+ContainerDb(db, "heating-db", "DB", "")
+Container(connector, "device-connector", "", "")
+Container(gateway, "API Gateway", "", "")
+Container(automation, "automation-service", "", "Доверенный внутренний вызывающий")
+
+Rel(gateway, api, "REST")
+Rel(automation, api, "команда")
+Rel(api, ctrl, "execute")
+Rel(ctrl, cmd, "dispatch")
+Rel(ctrl, repo, "persist")
+Rel(cmd, connector, "send command")
+Rel(repo, db, "SQL")
+
+SHOW_FLOATING_LEGEND()
+@enduml
